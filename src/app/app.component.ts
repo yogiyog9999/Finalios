@@ -3,7 +3,7 @@ import { supabase } from './services/supabase.client';
 //import { PushService } from './services/push.service';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { Platform, NavController } from '@ionic/angular';
-import { CapacitorApp } from '@capacitor/app';
+
 import { Capacitor } from '@capacitor/core';
 
 @Component({
