@@ -1,6 +1,5 @@
 import { Injectable } from '@angular/core';
 import { supabase } from './supabase.client';
-import { PushService } from '../services/push.service';
 
 export interface ContractorProfile {
   id?: string; // equals auth user id
@@ -30,7 +29,7 @@ export interface UserPreferences {
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
-  constructor(private pushService: PushService) {}
+  constructor() {}
 
   // ---------- SIGN UP ----------
   async signUp(email: string, password: string, firstName: string, lastName: string) {
@@ -115,7 +114,6 @@ export class AuthService {
       await supabase.auth.signOut();
       throw new Error('Your account has been suspended. Please contact support.');
     }
-	await this.pushService.init();
 
     return data;
   }
