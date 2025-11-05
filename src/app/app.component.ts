@@ -1,9 +1,8 @@
 import { Component } from '@angular/core';
 import { supabase } from './services/supabase.client';
-//import { PushService } from './services/push.service';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { Platform, NavController } from '@ionic/angular';
-
+import { App as CapacitorApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 
 @Component({
@@ -17,7 +16,6 @@ import { Capacitor } from '@capacitor/core';
 })
 export class AppComponent {
   constructor(
-    //private pushService: PushService,
     private platform: Platform,
     private navCtrl: NavController
   ) {
@@ -27,8 +25,6 @@ export class AppComponent {
 
   async initializeApp() {
     await this.platform.ready();
-
-    //this.pushService.init(); // Keep your own PushService if used
 
     await StatusBar.setOverlaysWebView({ overlay: true });
     await StatusBar.setStyle({ style: Style.Light });
