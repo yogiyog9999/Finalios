@@ -4,6 +4,8 @@ import { ReviewService } from '../../services/review.service';
 import { AuthService } from '../../services/auth.service';
 import { Router } from '@angular/router';
 import { supabase } from '../../services/supabase.client';
+ import { debounceTime } from 'rxjs/operators';
+import { fromEvent } from 'rxjs';
 
 declare var google: any;
 
@@ -71,64 +73,74 @@ export class ReviewNewPage implements AfterViewInit {
     this.initAutocomplete();
   }
 
-  initAutocomplete() {
+
+initAutocomplete() {
   this.autocompleteInput.getInputElement().then((inputEl: HTMLInputElement) => {
-    // Disable browser native autocomplete
     inputEl.setAttribute('autocomplete', 'off');
 
-    // Create Autocomplete instance
     this.autocomplete = new google.maps.places.Autocomplete(inputEl, {
       types: ['address'],
       componentRestrictions: { country: 'us' },
       fields: ['formatted_address', 'address_components', 'geometry']
     });
 
-    // Track if the user selected a suggestion
     let suggestionPicked = false;
 
-    // When user picks a suggestion from Google dropdown
+    // Google suggestion selected
     this.autocomplete.addListener('place_changed', () => {
       this.ngZone.run(() => {
         const place = this.autocomplete.getPlace();
         if (!place || !place.formatted_address) return;
 
         suggestionPicked = true;
-        // Keep address exactly as Google formatted it
         this.address = place.formatted_address;
         this.updateAddressFromPlace(place);
       });
     });
 
-    // If user clears the field manually
-    inputEl.addEventListener('input', () => {
-      if (!inputEl.value.trim()) {
-        suggestionPicked = false;
-        this.clearAddressFields();
-      }
+    // Debounced typing
+    fromEvent(inputEl, 'input')
+      .pipe(debounceTime(500)) // wait 0.5s after user stops typing
+      .subscribe(() => {
+        if (!suggestionPicked) {
+          const typedValue = inputEl.value.trim();
+          if (typedValue) {
+            this.address = typedValue;
+            this.geocodeManualAddress(typedValue);
+          } else {
+            this.clearAddressFields();
+          }
+        }
+      });
+
+    // Paste event
+    inputEl.addEventListener('paste', () => {
+      setTimeout(() => {
+        const typedValue = inputEl.value.trim();
+        if (typedValue) this.geocodeManualAddress(typedValue);
+      }, 200);
     });
 
-    // When user leaves the input (manual entry)
+    // Blur event
     inputEl.addEventListener('blur', () => {
       const typedValue = inputEl.value.trim();
       if (!typedValue) {
         this.clearAddressFields();
+        suggestionPicked = false;
         return;
       }
 
-      // If the user picked a suggestion, we already handled everything
-      if (suggestionPicked) {
-        suggestionPicked = false; // reset for next time
-        return;
+      if (!suggestionPicked) {
+        this.address = typedValue;
+        this.geocodeManualAddress(typedValue);
       }
 
-      // Otherwise, user typed manually — geocode it
-      this.address = typedValue; // keep user's original text
-      this.geocodeManualAddress(typedValue);
+      suggestionPicked = false;
     });
   });
 }
 
-/** Clears city/state/zip/lat/lng when input is cleared */
+/** Clears city/state/zip/lat/lng */
 clearAddressFields() {
   this.selectedCity = '';
   this.selectedState = '';
@@ -137,23 +149,30 @@ clearAddressFields() {
   this.lng = null;
 }
 
-/** Geocode a manually typed address */
+/** Geocode manually typed/pasted address */
 geocodeManualAddress(address: string) {
   const geocoder = new google.maps.Geocoder();
   geocoder.geocode({ address, region: 'US' }, (results: any, status: any) => {
     this.ngZone.run(() => {
       if (status === 'OK' && results && results[0]) {
-        // Fill dependent fields based on typed address
         this.updateAddressFromPlace(results[0]);
       } else {
-        console.warn('Manual geocode failed:', status);
-        this.clearAddressFields();
+        console.warn('Geocode failed:', status);
+
+        // Fallback regex parsing
+        const zipMatch = address.match(/\b\d{5}(?:-\d{4})?\b/);
+        const stateMatch = address.match(/\b[A-Z]{2}\b/);
+        if (zipMatch) this.zip = zipMatch[0];
+        if (stateMatch) this.selectedState = this.stateList.find(s => s.includes(stateMatch[0])) || stateMatch[0];
+
+        const cityCandidate = address.replace(this.zip, '').replace(stateMatch?.[0] || '', '').split(',')[0];
+        if (cityCandidate) this.selectedCity = cityCandidate.trim();
       }
     });
   });
 }
 
-/** Extract and fill City, State, Zip, and Lat/Lng */
+/** Fill city/state/zip/lat/lng from Google place or fallback to geocode */
 updateAddressFromPlace(place: any) {
   if (!place.address_components) return;
 
@@ -165,19 +184,29 @@ updateAddressFromPlace(place: any) {
     return comp ? comp.long_name : '';
   };
 
-  this.zip = get(['postal_code']);
-  this.selectedCity = get(['locality', 'postal_town', 'sublocality', 'administrative_area_level_3']);
-  const stateCode = get(['administrative_area_level_1']);
+  this.zip = get(['postal_code']) || '';
+  this.selectedCity = get([
+    'locality',
+    'postal_town',
+    'sublocality',
+    'sublocality_level_1',
+    'administrative_area_level_3'
+  ]) || '';
+
+  const stateCode = get(['administrative_area_level_1']) || '';
   const matchedState = this.stateList.find(
-    s =>
-      s.toLowerCase() === stateCode.toLowerCase() ||
-      s.toLowerCase().includes(stateCode.toLowerCase())
+    s => s.toLowerCase() === stateCode.toLowerCase() || s.toLowerCase().includes(stateCode.toLowerCase())
   );
-  this.selectedState = matchedState || stateCode;
+  this.selectedState = matchedState || stateCode || '';
 
   if (place.geometry?.location) {
     this.lat = place.geometry.location.lat();
     this.lng = place.geometry.location.lng();
+  }
+
+  // If any component missing, fallback to geocode
+  if (!this.selectedCity || !this.selectedState || !this.zip) {
+    this.geocodeManualAddress(this.address);
   }
 }
 
