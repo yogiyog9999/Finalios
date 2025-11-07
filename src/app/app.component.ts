@@ -26,25 +26,31 @@ export class AppComponent {
   async initializeApp() {
     await this.platform.ready();
 
-    await StatusBar.setOverlaysWebView({ overlay: true });
-    await StatusBar.setStyle({ style: Style.Light });
-    await StatusBar.setBackgroundColor({ color: '#4267B2' });
+    // ✅ Platform-specific status bar & safe area handling
+    if (this.platform.is('ios')) {
+      // iOS: Let Ionic manage safe area automatically (avoid extra footer space)
+      await StatusBar.setOverlaysWebView({ overlay: false });
+      await StatusBar.setStyle({ style: Style.Light });
+      await StatusBar.setBackgroundColor({ color: '#4267B2' });
+    } else {
+      // Android: Overlay is good and matches native look
+      await StatusBar.setOverlaysWebView({ overlay: true });
+      await StatusBar.setStyle({ style: Style.Light });
+      await StatusBar.setBackgroundColor({ color: '#4267B2' });
+    }
 
+    // Optional, for consistent layout
     document.documentElement.style.setProperty('--status-bar-height', 'env(safe-area-inset-top)');
 
+    // ✅ Auth check
     const { data: { user }, error } = await supabase.auth.getUser();
-
     if (error) {
       console.error('Auth check failed:', error.message);
       this.navCtrl.navigateRoot('/auth/login');
       return;
     }
 
-    if (user) {
-      this.navCtrl.navigateRoot('/tabs/dashboard');
-    } else {
-      this.navCtrl.navigateRoot('/auth/login');
-    }
+    this.navCtrl.navigateRoot(user ? '/tabs/dashboard' : '/auth/login');
   }
 
   handleDeepLinks() {
