@@ -3,7 +3,6 @@ import { supabase } from './services/supabase.client';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { Platform, NavController } from '@ionic/angular';
 import { App as CapacitorApp } from '@capacitor/app';
-import { Capacitor } from '@capacitor/core';
 
 @Component({
   standalone: false,
@@ -26,20 +25,18 @@ export class AppComponent {
   async initializeApp() {
     await this.platform.ready();
 
-    // ✅ Platform-specific status bar & safe area handling
     if (this.platform.is('ios')) {
-      // iOS: Let Ionic manage safe area automatically (avoid extra footer space)
+      // 🧩 IMPORTANT: Disable overlay on iOS
       await StatusBar.setOverlaysWebView({ overlay: false });
-      await StatusBar.setStyle({ style: Style.Light });
-      await StatusBar.setBackgroundColor({ color: '#4267B2' });
     } else {
-      // Android: Overlay is good and matches native look
+      // ✅ Android overlay is fine
       await StatusBar.setOverlaysWebView({ overlay: true });
-      await StatusBar.setStyle({ style: Style.Light });
-      await StatusBar.setBackgroundColor({ color: '#4267B2' });
     }
 
-    // Optional, for consistent layout
+    await StatusBar.setStyle({ style: Style.Light });
+    await StatusBar.setBackgroundColor({ color: '#4267B2' });
+
+    // Optional: top inset variable
     document.documentElement.style.setProperty('--status-bar-height', 'env(safe-area-inset-top)');
 
     // ✅ Auth check
@@ -69,7 +66,6 @@ export class AppComponent {
             access_token: accessToken,
             refresh_token: queryParams.get('refresh_token') || ''
           });
-
           this.navCtrl.navigateForward('/reset-password');
         }
       }
